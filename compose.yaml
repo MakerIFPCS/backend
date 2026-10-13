@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-sitemaker}
       POSTGRES_USER: ${DATABASE_USERNAME:-sitemaker}
-      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD in backend/.env}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-sitemaker_dev_password}
     ports:
       - "5432:5432"
     volumes:
@@ -21,10 +21,16 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
-    env_file:
-      - .env
     environment:
       DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-sitemaker}
+      DATABASE_USERNAME: ${DATABASE_USERNAME:-sitemaker}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-sitemaker_dev_password}
+      JWT_SECRET: ${JWT_SECRET:-change-this-development-secret-to-a-long-random-value}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@sitemaker.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin12345678}
+      DEMO_USER_EMAIL: ${DEMO_USER_EMAIL:-usuario@sitemaker.local}
+      DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD:-usuario123}
+      SPRING_SQL_INIT_MODE: always
     ports:
       - "8081:8081"
     depends_on:
