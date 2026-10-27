@@ -35,7 +35,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE, "/api/users/*").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/machines/**").authenticated()
                         .requestMatchers("/api/machines/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/agendamentos/**").authenticated()
                         .requestMatchers("/api/agendamentos/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/pedidos", "/api/emprestimos").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/pedidos/admin", "/api/emprestimos/admin").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/pedidos/**", "/api/emprestimos/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, exception) -> {

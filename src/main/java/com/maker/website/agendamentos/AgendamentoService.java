@@ -25,6 +25,7 @@ public class AgendamentoService {
         validate(request);
         AgendamentoEntity entity = new AgendamentoEntity();
         apply(entity, request);
+        entity.setStatus("Aguardando análise");
         AgendamentoEntity saved = repository.save(entity);
         if (saved.getCode() == null || saved.getCode().isBlank()) {
             saved.setCode(String.format("#%04d", saved.getId()));
