@@ -33,7 +33,7 @@ public class MachineController {
 
     @PostMapping
     public ResponseEntity<MachineResponseDTO> createMachine(@RequestBody @Valid CreateMachineDTO dto, Authentication authentication) {
-        MachineResponseDTO createdMachine = machineService.createMachine(dto);
+        MachineResponseDTO createdMachine = machineService.createMachine(dto, currentUserId(authentication));
         return ResponseEntity.status(HttpStatus.CREATED).body(createdMachine);
     }
 
@@ -42,13 +42,13 @@ public class MachineController {
             @PathVariable Long id,
             @RequestBody @Valid UpdateMachineDTO dto,
             Authentication authentication) {
-        MachineResponseDTO updatedMachine = machineService.updateMachine(id, dto);
+        MachineResponseDTO updatedMachine = machineService.updateMachine(id, dto, currentUserId(authentication));
         return ResponseEntity.ok(updatedMachine);
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteMachine(@PathVariable Long id, Authentication authentication) {
-        machineService.deleteMachine(id);
+        machineService.deleteMachine(id, currentUserId(authentication));
         return ResponseEntity.noContent().build();
     }
 

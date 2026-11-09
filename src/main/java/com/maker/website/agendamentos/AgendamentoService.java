@@ -2,8 +2,10 @@ package com.maker.website.agendamentos;
 
 import com.maker.website.agendamentos.dtos.AgendamentoRequestDTO;
 import com.maker.website.agendamentos.dtos.AgendamentoResponseDTO;
+import com.maker.website.reports.ReportAuditService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -12,6 +14,7 @@ import java.util.List;
 public class AgendamentoService {
 
     private final AgendamentoRepository repository;
+    private final ReportAuditService reportAuditService;
 
     public List<AgendamentoResponseDTO> findAll() {
         return repository.findAll().stream().map(AgendamentoResponseDTO::new).toList();
@@ -21,7 +24,8 @@ public class AgendamentoService {
         return new AgendamentoResponseDTO(findEntity(id));
     }
 
-    public AgendamentoResponseDTO create(AgendamentoRequestDTO request) {
+    @Transactional
+    public AgendamentoResponseDTO create(AgendamentoRequestDTO request, Long actorId) {
         validate(request);
         AgendamentoEntity entity = new AgendamentoEntity();
         apply(entity, request);
@@ -30,18 +34,29 @@ public class AgendamentoService {
             saved.setCode(String.format("#%04d", saved.getId()));
             saved = repository.save(saved);
         }
+        reportAuditService.record("AGENDAMENTO", "Pedido de agendamento criado", saved.getRequesterName(), actorId,
+                "Código: " + saved.getCode() + " · Data solicitada: " + saved.getDate());
         return new AgendamentoResponseDTO(saved);
     }
 
-    public AgendamentoResponseDTO update(Long id, AgendamentoRequestDTO request) {
+    @Transactional
+    public AgendamentoResponseDTO update(Long id, AgendamentoRequestDTO request, Long actorId) {
         validate(request);
         AgendamentoEntity entity = findEntity(id);
+        String oldStatus = entity.getStatus();
         apply(entity, request);
-        return new AgendamentoResponseDTO(repository.save(entity));
+        AgendamentoEntity updated = repository.save(entity);
+        reportAuditService.record("AGENDAMENTO", "Pedido de agendamento atualizado", updated.getRequesterName(), actorId,
+                "Código: " + updated.getCode() + " · Status: " + oldStatus + " → " + updated.getStatus());
+        return new AgendamentoResponseDTO(updated);
     }
 
-    public void delete(Long id) {
-        repository.delete(findEntity(id));
+    @Transactional
+    public void delete(Long id, Long actorId) {
+        AgendamentoEntity entity = findEntity(id);
+        repository.delete(entity);
+        reportAuditService.record("AGENDAMENTO", "Pedido de agendamento removido", entity.getRequesterName(), actorId,
+                "Código: " + entity.getCode() + " · Data solicitada: " + entity.getDate());
     }
 
     private AgendamentoEntity findEntity(Long id) {

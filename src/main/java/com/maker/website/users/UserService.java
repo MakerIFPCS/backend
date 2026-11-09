@@ -6,10 +6,12 @@ import com.maker.website.users.dtos.UserResponseDTO;
 import com.maker.website.users.enums.UserRoleENUM;
 import com.maker.website.users.enums.UserStatusENUM;
 import com.maker.website.users.enums.UserTypeENUM;
+import com.maker.website.reports.ReportAuditService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -20,6 +22,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ReportAuditService reportAuditService;
 
     public List<UserResponseDTO> getAllUsers() {
         return userRepository.findAllByStatusNot(UserStatusENUM.DELETED)
@@ -32,6 +35,7 @@ public class UserService {
         return new UserResponseDTO(findActiveUserById(requestedId));
     }
 
+    @Transactional
     public UserResponseDTO createUser(CreateUserDTO dto) {
         validateEmail(dto.email());
         validateCpf(dto.cpf());
@@ -46,9 +50,13 @@ public class UserService {
         user.setBirthDate(LocalDate.now());
         user.setRole(UserRoleENUM.USER);
         user.setStatus(UserStatusENUM.ACTIVE);
-        return new UserResponseDTO(userRepository.save(user));
+        UserEntity savedUser = userRepository.save(user);
+        reportAuditService.record("USUÁRIO", "Conta criada", savedUser.getName(), null,
+                "Cadastro: " + savedUser.getEmail());
+        return new UserResponseDTO(savedUser);
     }
 
+    @Transactional
     public UserResponseDTO updateUser(Long id, UpdateUserDTO dto, Long authenticatedId) {
         UserEntity authenticatedUser = findActiveUserById(authenticatedId);
         requireOwnerOrAdmin(authenticatedUser, id);
@@ -70,17 +78,24 @@ public class UserService {
         if (dto.type() != null) user.setType(dto.type());
         if (dto.birthDate() != null) user.setBirthDate(dto.birthDate());
 
-        return new UserResponseDTO(userRepository.save(user));
+        UserEntity updatedUser = userRepository.save(user);
+        reportAuditService.record("USUÁRIO", "Perfil atualizado", updatedUser.getName(), authenticatedId,
+                "ID do usuário: " + updatedUser.getId());
+        return new UserResponseDTO(updatedUser);
     }
 
+    @Transactional
     public void deleteUser(Long id, Long authenticatedId) {
         UserEntity authenticatedUser = findActiveUserById(authenticatedId);
         requireOwnerOrAdmin(authenticatedUser, id);
         UserEntity user = findActiveUserById(id);
         user.setStatus(UserStatusENUM.DELETED);
         userRepository.save(user);
+        reportAuditService.record("USUÁRIO", "Conta desativada", user.getName(), authenticatedId,
+                "ID do usuário: " + user.getId());
     }
 
+    @Transactional
     public UserResponseDTO promoteUserToAdmin(Long userId, Long authenticatedId) {
         UserEntity adminUser = findActiveUserById(authenticatedId);
         requireAdmin(adminUser);
@@ -89,7 +104,10 @@ public class UserService {
             throw new IllegalArgumentException("User is already an ADMIN.");
         }
         userToPromote.setRole(UserRoleENUM.ADMIN);
-        return new UserResponseDTO(userRepository.save(userToPromote));
+        UserEntity promotedUser = userRepository.save(userToPromote);
+        reportAuditService.record("USUÁRIO", "Acesso de administrador concedido", promotedUser.getName(),
+                authenticatedId, "Conta: " + promotedUser.getEmail());
+        return new UserResponseDTO(promotedUser);
     }
 
     public UserEntity authenticate(String email, String rawPassword) {

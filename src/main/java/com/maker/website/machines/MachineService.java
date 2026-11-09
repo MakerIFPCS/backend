@@ -4,8 +4,10 @@ import com.maker.website.machines.dtos.CreateMachineDTO;
 import com.maker.website.machines.dtos.MachineResponseDTO;
 import com.maker.website.machines.dtos.UpdateMachineDTO;
 import com.maker.website.machines.enums.MachineStatusENUM; // Ajuste o pacote do Enum se necessário
+import com.maker.website.reports.ReportAuditService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -14,6 +16,7 @@ import java.util.List;
 public class MachineService {
 
     private final MachineRepository machineRepository;
+    private final ReportAuditService reportAuditService;
 
     public List<MachineResponseDTO> getAllMachines() {
         return machineRepository.findAllByStatusNot(MachineStatusENUM.UNUSABLE)
@@ -24,7 +27,8 @@ public class MachineService {
         return new MachineResponseDTO(findMachineById(id));
     }
 
-    public MachineResponseDTO createMachine(CreateMachineDTO dto) {
+    @Transactional
+    public MachineResponseDTO createMachine(CreateMachineDTO dto, Long actorId) {
         validateMachineName(dto.name());
         validateMachineCode(dto.code());
 
@@ -37,11 +41,17 @@ public class MachineService {
         machine.setAccess(dto.access());
         machine.setStatus(dto.status() == null ? MachineStatusENUM.AVAILABLE : dto.status());
 
-        return new MachineResponseDTO(machineRepository.save(machine));
+        MachineEntity savedMachine = machineRepository.save(machine);
+        reportAuditService.record("MÁQUINA", "Máquina cadastrada", savedMachine.getName(), actorId,
+                "Código: " + savedMachine.getCode() + " · Status: " + savedMachine.getStatus());
+        return new MachineResponseDTO(savedMachine);
     }
 
-    public MachineResponseDTO updateMachine(Long id, UpdateMachineDTO dto) {
+    @Transactional
+    public MachineResponseDTO updateMachine(Long id, UpdateMachineDTO dto, Long actorId) {
         MachineEntity machine = findMachineById(id);
+        String oldName = machine.getName();
+        MachineStatusENUM oldStatus = machine.getStatus();
 
         if (dto.name() != null && !dto.name().equals(machine.getName())) {
             validateMachineName(dto.name());
@@ -61,13 +71,19 @@ public class MachineService {
         if (dto.image() != null) machine.setImage(dto.image());
         if (dto.access() != null) machine.setAccess(dto.access());
 
-        return new MachineResponseDTO(machineRepository.save(machine));
+        MachineEntity updatedMachine = machineRepository.save(machine);
+        reportAuditService.record("MÁQUINA", "Dados atualizados", updatedMachine.getName(), actorId,
+                "Nome anterior: " + oldName + " · Status: " + oldStatus + " → " + updatedMachine.getStatus());
+        return new MachineResponseDTO(updatedMachine);
     }
 
-    public void deleteMachine(Long id) {
+    @Transactional
+    public void deleteMachine(Long id, Long actorId) {
         MachineEntity machine = findMachineById(id);
         machine.setStatus(MachineStatusENUM.UNUSABLE);
         machineRepository.save(machine);
+        reportAuditService.record("MÁQUINA", "Máquina desativada", machine.getName(), actorId,
+                "Código: " + machine.getCode());
     }
 
     public MachineEntity findMachineById(Long id) {
