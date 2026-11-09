@@ -17,6 +17,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.text.Normalizer;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -118,6 +119,27 @@ public class ProductionOrderService {
     }
 
     @Transactional
+    public ProductionOrderResponseDTO updateEstimatedCompletion(
+            Long id,
+            LocalDateTime estimatedCompletionAt,
+            Long adminId
+    ) {
+        if (estimatedCompletionAt == null) {
+            throw new IllegalArgumentException("An estimated completion date and time is required.");
+        }
+        ProductionOrderEntity order = find3DOrderForScheduling(id, adminId);
+        order.setEstimatedCompletionAt(estimatedCompletionAt);
+        return new ProductionOrderResponseDTO(productionOrderRepository.save(order));
+    }
+
+    @Transactional
+    public ProductionOrderResponseDTO clearEstimatedCompletion(Long id, Long adminId) {
+        ProductionOrderEntity order = find3DOrderForScheduling(id, adminId);
+        order.setEstimatedCompletionAt(null);
+        return new ProductionOrderResponseDTO(productionOrderRepository.save(order));
+    }
+
+    @Transactional
     public ProductionOrderResponseDTO addComment(Long id, Long actorId, String message) {
         if (message == null || message.isBlank() || message.trim().length() > 2000) {
             throw new IllegalArgumentException("A comment of 1 to 2000 characters is required.");
@@ -205,6 +227,19 @@ public class ProductionOrderService {
             throw new IllegalArgumentException("The selected machine is not available.");
         }
         return machine;
+    }
+
+    private ProductionOrderEntity find3DOrderForScheduling(Long id, Long adminId) {
+        UserEntity admin = userService.findActiveUserById(adminId);
+        if (admin.getRole() != UserRoleENUM.ADMIN) {
+            throw new AccessDeniedException("Only an administrator can update an estimated completion date.");
+        }
+        ProductionOrderEntity order = productionOrderRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new IllegalArgumentException("Production order not found."));
+        if (order.getType() != ProductionOrderTypeENUM.THREE_D_PRINTING) {
+            throw new IllegalArgumentException("Estimated completion dates are only available for 3D printing orders.");
+        }
+        return order;
     }
 
     private void setFile(ProductionOrderEntity order, MultipartFile file) throws IOException {

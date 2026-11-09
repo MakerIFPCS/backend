@@ -73,6 +73,8 @@ public class ProductionOrderEntity {
     @Column(length = 500)
     private String adminNotes;
 
+    private LocalDateTime estimatedCompletionAt;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
     @OrderBy("createdAt ASC, id ASC")
     private List<ProductionOrderCommentEntity> comments = new ArrayList<>();
