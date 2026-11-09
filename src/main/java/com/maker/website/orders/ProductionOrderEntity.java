@@ -3,6 +3,7 @@ package com.maker.website.orders;
 import com.maker.website.machines.MachineEntity;
 import com.maker.website.users.UserEntity;
 import jakarta.persistence.Column;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -12,6 +13,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -20,6 +23,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "production_orders")
@@ -44,20 +49,22 @@ public class ProductionOrderEntity {
     @JoinColumn(name = "machine_id")
     private MachineEntity machine;
 
-    @Column(nullable = false, length = 1024)
+    @Column(length = 1024)
     private String fileName;
 
-    @Column(nullable = false, length = 255)
+    @Column(length = 255)
     private String contentType;
 
-    @Column(nullable = false)
     private long fileSize;
 
-    @Column(nullable = false, columnDefinition = "bytea")
+    @Column(columnDefinition = "bytea")
     private byte[] fileData;
 
     @Column(nullable = false, length = 2000)
     private String notes;
+
+    @Column(length = 2000)
+    private String dimensions;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -65,6 +72,10 @@ public class ProductionOrderEntity {
 
     @Column(length = 500)
     private String adminNotes;
+
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
+    @OrderBy("createdAt ASC, id ASC")
+    private List<ProductionOrderCommentEntity> comments = new ArrayList<>();
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -80,5 +91,10 @@ public class ProductionOrderEntity {
     @PreUpdate
     void onUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+
+    public void addComment(ProductionOrderCommentEntity comment) {
+        comments.add(comment);
+        comment.setOrder(this);
     }
 }

@@ -5,6 +5,7 @@ import com.maker.website.orders.ProductionOrderStatusENUM;
 import com.maker.website.orders.ProductionOrderTypeENUM;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record ProductionOrderResponseDTO(
         Long id,
@@ -16,8 +17,10 @@ public record ProductionOrderResponseDTO(
         String fileName,
         long fileSize,
         String notes,
+        String dimensions,
         ProductionOrderStatusENUM status,
         String adminNotes,
+        List<ProductionOrderCommentResponseDTO> comments,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
@@ -32,8 +35,10 @@ public record ProductionOrderResponseDTO(
                 order.getFileName(),
                 order.getFileSize(),
                 order.getNotes(),
+                order.getDimensions(),
                 order.getStatus(),
                 order.getAdminNotes(),
+                order.getComments().stream().map(ProductionOrderCommentResponseDTO::new).toList(),
                 order.getCreatedAt(),
                 order.getUpdatedAt()
         );

@@ -6,6 +6,7 @@ import com.maker.website.machines.enums.MachineStatusENUM;
 import com.maker.website.orders.dtos.ReviewProductionOrderDTO;
 import com.maker.website.users.UserEntity;
 import com.maker.website.users.UserService;
+import com.maker.website.users.enums.UserRoleENUM;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.security.access.AccessDeniedException;
@@ -40,10 +41,11 @@ class ProductionOrderServiceTest {
                 "file", "part.custom-extension", "application/x-unlisted-format", new byte[]{1, 2, 3});
 
         var result = productionOrderService.createOrder(
-                12L, ProductionOrderTypeENUM.LASER_CUTTING, null, "Please check dimensions.", file);
+                12L, ProductionOrderTypeENUM.LASER_CUTTING, null, "Please check dimensions.", "100 x 100 mm", file);
 
         assertEquals(ProductionOrderTypeENUM.LASER_CUTTING, result.type());
         assertEquals("part.custom-extension", result.fileName());
+        assertEquals("100 x 100 mm", result.dimensions());
         assertEquals(3, result.fileSize());
         assertEquals(ProductionOrderStatusENUM.PENDING, result.status());
         verify(productionOrderRepository).save(argThat(order ->
@@ -68,7 +70,7 @@ class ProductionOrderServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         var result = productionOrderService.createOrder(
-                12L, ProductionOrderTypeENUM.THREE_D_PRINTING, 5L, null,
+                12L, ProductionOrderTypeENUM.THREE_D_PRINTING, 5L, null, null,
                 new MockMultipartFile("file", "model.stl", "model/stl", new byte[]{4}));
 
         assertEquals(5L, result.machineId());
@@ -77,16 +79,26 @@ class ProductionOrderServiceTest {
     }
 
     @Test
-    void validatesFilePrinterAndNotesBeforeSaving() {
+    void createsRequestsWithoutFileAndValidatesMachineAndDetails() throws Exception {
+        when(userService.findActiveUserById(12L)).thenReturn(user());
+        when(productionOrderRepository.save(any(ProductionOrderEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        var noFileOrder = productionOrderService.createOrder(
+                12L, ProductionOrderTypeENUM.LASER_CUTTING, null, null, null, null);
+        assertNull(noFileOrder.fileName());
+        assertEquals(0, noFileOrder.fileSize());
+        assertNotNull(noFileOrder.comments());
+        assertTrue(noFileOrder.comments().isEmpty());
+
         assertThrows(IllegalArgumentException.class, () -> productionOrderService.createOrder(
-                12L, ProductionOrderTypeENUM.LASER_CUTTING, null, null, null));
+                12L, null, null, null, null, null));
         assertThrows(IllegalArgumentException.class, () -> productionOrderService.createOrder(
-                12L, ProductionOrderTypeENUM.THREE_D_PRINTING, null, null,
+                12L, ProductionOrderTypeENUM.THREE_D_PRINTING, null, null, null,
                 new MockMultipartFile("file", "model.stl", "model/stl", new byte[]{1})));
         assertThrows(IllegalArgumentException.class, () -> productionOrderService.createOrder(
-                12L, ProductionOrderTypeENUM.LASER_CUTTING, null, "x".repeat(2001),
+                12L, ProductionOrderTypeENUM.LASER_CUTTING, null, "x".repeat(2001), null,
                 new MockMultipartFile("file", "model.stl", "model/stl", new byte[]{1})));
-        verifyNoInteractions(userService, productionOrderRepository, machineRepository);
+        verify(machineRepository, never()).findByIdAndStatusNot(anyLong(), any());
     }
 
     @Test
@@ -97,7 +109,7 @@ class ProductionOrderServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         var result = productionOrderService.createOrder(
-                12L, ProductionOrderTypeENUM.LASER_CUTTING, null, null, maxSizeFile);
+                12L, ProductionOrderTypeENUM.LASER_CUTTING, null, null, null, maxSizeFile);
 
         assertEquals(100L * 1024 * 1024, result.fileSize());
         verify(productionOrderRepository).save(any(ProductionOrderEntity.class));
@@ -105,7 +117,7 @@ class ProductionOrderServiceTest {
         when(oversizedFile.isEmpty()).thenReturn(false);
         when(oversizedFile.getSize()).thenReturn(100L * 1024 * 1024 + 1);
         assertThrows(IllegalArgumentException.class, () -> productionOrderService.createOrder(
-                12L, ProductionOrderTypeENUM.LASER_CUTTING, null, null,
+                12L, ProductionOrderTypeENUM.LASER_CUTTING, null, null, null,
                 oversizedFile));
     }
 
@@ -118,30 +130,89 @@ class ProductionOrderServiceTest {
                 .thenReturn(Optional.of(unavailablePrinter));
 
         assertThrows(IllegalArgumentException.class, () -> productionOrderService.createOrder(
-                12L, ProductionOrderTypeENUM.THREE_D_PRINTING, 5L, null,
+                12L, ProductionOrderTypeENUM.THREE_D_PRINTING, 5L, null, null,
                 new MockMultipartFile("file", "model.stl", "model/stl", new byte[]{1})));
 
         unavailablePrinter.setStatus(MachineStatusENUM.AVAILABLE);
         unavailablePrinter.setType("Corte a Laser");
         assertThrows(IllegalArgumentException.class, () -> productionOrderService.createOrder(
-                12L, ProductionOrderTypeENUM.THREE_D_PRINTING, 5L, null,
+                12L, ProductionOrderTypeENUM.THREE_D_PRINTING, 5L, null, null,
                 new MockMultipartFile("file", "model.stl", "model/stl", new byte[]{1})));
         verifyNoInteractions(productionOrderRepository);
     }
 
     @Test
-    void reviewsPendingOrderAndPreventsReviewingItAgain() {
+    void adminsCanRequestUpdatesAndReopenOrders() {
         ProductionOrderEntity order = order();
+        UserEntity admin = user();
+        admin.setId(99L);
+        admin.setRole(UserRoleENUM.ADMIN);
+        when(productionOrderRepository.findByIdForUpdate(9L)).thenReturn(Optional.of(order));
+        when(productionOrderRepository.save(order)).thenReturn(order);
+        when(userService.findActiveUserById(99L)).thenReturn(admin);
+
+        var result = productionOrderService.reviewOrder(
+                9L, new ReviewProductionOrderDTO(ProductionOrderStatusENUM.WAITING_FOR_UPDATE, "Please attach the model file."), 99L);
+        assertEquals(ProductionOrderStatusENUM.WAITING_FOR_UPDATE, result.status());
+        assertEquals(1, result.comments().size());
+
+        var reopened = productionOrderService.reviewOrder(
+                9L, new ReviewProductionOrderDTO(ProductionOrderStatusENUM.PENDING, null), 99L);
+        assertEquals(ProductionOrderStatusENUM.PENDING, reopened.status());
+        assertThrows(IllegalArgumentException.class, () -> productionOrderService.reviewOrder(
+                9L, new ReviewProductionOrderDTO(ProductionOrderStatusENUM.REJECTED, null), 99L));
+    }
+
+    @Test
+    void userCanUpdateWaitingRequestAndCompleteItWithoutReplacingFile() throws Exception {
+        ProductionOrderEntity order = order();
+        order.setStatus(ProductionOrderStatusENUM.WAITING_FOR_UPDATE);
+        order.setAdminNotes("Please add dimensions.");
         when(productionOrderRepository.findByIdForUpdate(9L)).thenReturn(Optional.of(order));
         when(productionOrderRepository.save(order)).thenReturn(order);
 
-        var result = productionOrderService.reviewOrder(
-                9L, new ReviewProductionOrderDTO(ProductionOrderStatusENUM.APPROVED, "Ready to schedule."));
+        var result = productionOrderService.updateOrder(
+                9L, 12L, ProductionOrderTypeENUM.LASER_CUTTING, null, "Updated notes.",
+                "50 x 40 mm", null);
 
-        assertEquals(ProductionOrderStatusENUM.APPROVED, result.status());
-        assertEquals("Ready to schedule.", result.adminNotes());
-        assertThrows(IllegalArgumentException.class, () -> productionOrderService.reviewOrder(
-                9L, new ReviewProductionOrderDTO(ProductionOrderStatusENUM.REJECTED, null)));
+        assertEquals(ProductionOrderStatusENUM.PENDING, result.status());
+        assertEquals("50 x 40 mm", result.dimensions());
+        assertEquals("model.stl", result.fileName());
+        assertNull(result.adminNotes());
+    }
+
+    @Test
+    void onlyTheRequesterCanEditAnOpenOrder() {
+        ProductionOrderEntity order = order();
+        when(productionOrderRepository.findByIdForUpdate(9L)).thenReturn(Optional.of(order));
+
+        assertThrows(AccessDeniedException.class, () -> productionOrderService.updateOrder(
+                9L, 99L, ProductionOrderTypeENUM.LASER_CUTTING, null, "", "", null));
+
+        order.setStatus(ProductionOrderStatusENUM.APPROVED);
+        assertThrows(IllegalArgumentException.class, () -> productionOrderService.updateOrder(
+                9L, 12L, ProductionOrderTypeENUM.LASER_CUTTING, null, "", "", null));
+        verify(productionOrderRepository, never()).save(any(ProductionOrderEntity.class));
+    }
+
+    @Test
+    void validatesCncMachineTypeAndAllowsAvailableCnc() throws Exception {
+        MachineEntity cnc = new MachineEntity();
+        cnc.setId(8L);
+        cnc.setName("Router CNC");
+        cnc.setType("CNC");
+        cnc.setStatus(MachineStatusENUM.FUNCTIONAL);
+        when(userService.findActiveUserById(12L)).thenReturn(user());
+        when(machineRepository.findByIdAndStatusNot(8L, MachineStatusENUM.UNUSABLE))
+                .thenReturn(Optional.of(cnc));
+        when(productionOrderRepository.save(any(ProductionOrderEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = productionOrderService.createOrder(
+                12L, ProductionOrderTypeENUM.CNC_MACHINING, 8L, null, null, null);
+
+        assertEquals("Router CNC", result.machineName());
+        assertEquals(ProductionOrderTypeENUM.CNC_MACHINING, result.type());
     }
 
     @Test
@@ -171,6 +242,7 @@ class ProductionOrderServiceTest {
         user.setId(12L);
         user.setName("Request User");
         user.setEmail("user@example.test");
+        user.setRole(UserRoleENUM.USER);
         return user;
     }
 
@@ -184,6 +256,7 @@ class ProductionOrderServiceTest {
         order.setFileData(new byte[]{1});
         order.setFileSize(1);
         order.setNotes("");
+        order.setDimensions("");
         order.setStatus(ProductionOrderStatusENUM.PENDING);
         return order;
     }

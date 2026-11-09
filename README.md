@@ -57,32 +57,48 @@ para a mesma máquina.
 
 ## Pedidos de fabricação
 
-Usuários autenticados podem enviar pedidos de corte a laser ou impressão 3D
-com qualquer tipo de arquivo (até 100 MB), incluir observações e acompanhar
-suas solicitações. Os arquivos são armazenados no PostgreSQL junto ao pedido.
-Pedidos de impressão 3D precisam indicar uma impressora cadastrada na seção
-Máquinas e disponível para uso. Administradores consultam os pedidos, baixam
-os arquivos enviados e aprovam ou recusam cada solicitação. O download é
-permitido somente ao solicitante ou a um administrador.
+Usuários autenticados podem enviar pedidos de corte a laser, impressão 3D ou
+usinagem CNC, mesmo antes de anexar um arquivo. Podem incluir dimensões e
+observações e, enquanto o pedido estiver aberto, editar os dados, anexar ou
+substituir o arquivo e conversar com a equipe. Os arquivos são armazenados no
+PostgreSQL junto ao pedido e aceitam até 100 MB. Pedidos de impressão 3D e CNC
+precisam indicar uma máquina cadastrada na seção Máquinas e disponível para
+uso. Administradores consultam os pedidos, baixam os arquivos e podem aprovar,
+recusar, pedir informações adicionais ou reabrir pedidos encerrados. Recusas e
+pedidos de atualização exigem uma explicação. O download é permitido somente
+ao solicitante ou a um administrador.
 
-- `POST /api/orders` recebe `multipart/form-data` com `type` (`LASER_CUTTING`
-  ou `THREE_D_PRINTING`), `file`, `notes` (opcional, até 2000 caracteres) e,
-  para impressão 3D, `machineId`. Arquivos não têm restrição de extensão ou
-  formato e podem ter até 100 MiB. A API retorna `400` se o arquivo estiver
-  ausente e `413` se o limite de tamanho for excedido.
+Na inicialização, `schema.sql` atualiza as restrições de pedidos existentes
+para aceitar os novos status e tipos e permitir solicitações sem anexo. Essa
+migração não remove nem recria o volume PostgreSQL.
+
+- `POST /api/orders` recebe `multipart/form-data` com `type` (`LASER_CUTTING`,
+  `THREE_D_PRINTING` ou `CNC_MACHINING`), `file` (opcional), `notes` e
+  `dimensions` (opcionais, até 2000 caracteres cada). Impressão 3D e CNC
+  exigem `machineId`. Arquivos não têm restrição de extensão ou formato e
+  podem ter até 100 MiB; a API retorna `413` se o limite for excedido.
 - `GET /api/orders/mine` lista os pedidos do usuário autenticado.
 - `GET /api/orders` lista todos os pedidos e exige perfil de administrador.
+- `PUT /api/orders/{id}` permite ao solicitante atualizar os dados e,
+  opcionalmente, anexar/substituir o arquivo enquanto o pedido estiver
+  `PENDING` ou `WAITING_FOR_UPDATE`. Ao completar um pedido aguardando
+  informações, o status volta para `PENDING`.
+- `POST /api/orders/{id}/comments` registra uma mensagem na conversa do pedido.
+  Solicitantes só podem comentar nos próprios pedidos abertos; administradores
+  podem comentar em qualquer pedido.
 - `GET /api/orders/{id}/file` baixa o anexo; somente o solicitante ou um
-  administrador pode acessar o conteúdo.
+  administrador pode acessar o conteúdo. Pedidos sem arquivo retornam `400`.
 - `PATCH /api/orders/{id}/status` exige perfil de administrador e recebe
-  `{"status":"APPROVED","adminNotes":"..."}` ou
-  `{"status":"REJECTED","adminNotes":"..."}`. Apenas pedidos `PENDING` podem
-  ser revisados; `adminNotes` é opcional e aceita até 500 caracteres.
+  `{"status":"PENDING|WAITING_FOR_UPDATE|APPROVED|REJECTED","adminNotes":"..."}`.
+  Administradores podem reabrir um pedido alterando o status para `PENDING`.
+  `adminNotes` é obrigatória para `REJECTED` e `WAITING_FOR_UPDATE`, aceita até
+  500 caracteres e também é salva na conversa como mensagem da equipe.
 
 As respostas de criação, listagem e revisão usam o mesmo formato do frontend:
 `id`, `requesterName`, `requesterEmail`, `type`, `machineId`, `machineName`,
-`fileName`, `fileSize`, `notes`, `status`, `adminNotes`, `createdAt` e
-`updatedAt`. Pedidos de corte a laser não recebem `machineId`.
+`fileName`, `fileSize`, `notes`, `dimensions`, `status`, `adminNotes`,
+`comments`, `createdAt` e `updatedAt`. Pedidos de corte a laser não recebem
+`machineId`.
 
 ## Relatório de atividades
 
