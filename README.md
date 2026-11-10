@@ -93,12 +93,18 @@ migração não remove nem recria o volume PostgreSQL.
   Administradores podem reabrir um pedido alterando o status para `PENDING`.
   `adminNotes` é obrigatória para `REJECTED` e `WAITING_FOR_UPDATE`, aceita até
   500 caracteres e também é salva na conversa como mensagem da equipe.
+- Administradores definem ou atualizam a previsão de conclusão de um pedido de
+  impressão 3D com `PATCH /api/orders/{id}/estimated-completion`, enviando
+  `{"estimatedCompletionAt":"AAAA-MM-DDThh:mm:ss"}`. Podem removê-la com
+  `DELETE` no mesmo endpoint. A previsão é incluída em `GET /api/orders/mine`
+  e nas demais respostas do pedido; para outros tipos de fabricação, o campo é
+  `null`.
 
 As respostas de criação, listagem e revisão usam o mesmo formato do frontend:
 `id`, `requesterName`, `requesterEmail`, `type`, `machineId`, `machineName`,
 `fileName`, `fileSize`, `notes`, `dimensions`, `status`, `adminNotes`,
-`comments`, `createdAt` e `updatedAt`. Pedidos de corte a laser não recebem
-`machineId`.
+`comments`, `estimatedCompletionAt`, `createdAt` e `updatedAt`. Pedidos de
+corte a laser não recebem `machineId`.
 
 ## Relatório de atividades
 

@@ -20,6 +20,7 @@ public record ProductionOrderResponseDTO(
         String dimensions,
         ProductionOrderStatusENUM status,
         String adminNotes,
+        LocalDateTime estimatedCompletionAt,
         List<ProductionOrderCommentResponseDTO> comments,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
@@ -38,6 +39,7 @@ public record ProductionOrderResponseDTO(
                 order.getDimensions(),
                 order.getStatus(),
                 order.getAdminNotes(),
+                order.getEstimatedCompletionAt(),
                 order.getComments().stream().map(ProductionOrderCommentResponseDTO::new).toList(),
                 order.getCreatedAt(),
                 order.getUpdatedAt()

@@ -16,6 +16,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -161,6 +162,49 @@ class ProductionOrderServiceTest {
         assertEquals(ProductionOrderStatusENUM.PENDING, reopened.status());
         assertThrows(IllegalArgumentException.class, () -> productionOrderService.reviewOrder(
                 9L, new ReviewProductionOrderDTO(ProductionOrderStatusENUM.REJECTED, null), 99L));
+    }
+
+    @Test
+    void adminsCanSetAndClearEstimatedCompletionFor3DPrintingOrders() {
+        ProductionOrderEntity order = order();
+        order.setType(ProductionOrderTypeENUM.THREE_D_PRINTING);
+        UserEntity admin = user();
+        admin.setId(99L);
+        admin.setRole(UserRoleENUM.ADMIN);
+        LocalDateTime estimatedCompletionAt = LocalDateTime.of(2026, 11, 12, 16, 30);
+        when(userService.findActiveUserById(99L)).thenReturn(admin);
+        when(productionOrderRepository.findByIdForUpdate(9L)).thenReturn(Optional.of(order));
+        when(productionOrderRepository.save(order)).thenReturn(order);
+
+        var scheduled = productionOrderService.updateEstimatedCompletion(9L, estimatedCompletionAt, 99L);
+        assertEquals(estimatedCompletionAt, scheduled.estimatedCompletionAt());
+
+        var cleared = productionOrderService.clearEstimatedCompletion(9L, 99L);
+        assertNull(cleared.estimatedCompletionAt());
+    }
+
+    @Test
+    void onlyAdminsCanSchedule3DPrintingOrders() {
+        ProductionOrderEntity order = order();
+        order.setType(ProductionOrderTypeENUM.THREE_D_PRINTING);
+        when(userService.findActiveUserById(12L)).thenReturn(user());
+
+        assertThrows(AccessDeniedException.class, () -> productionOrderService.updateEstimatedCompletion(
+                9L, LocalDateTime.of(2026, 11, 12, 16, 30), 12L));
+        verify(productionOrderRepository, never()).findByIdForUpdate(anyLong());
+    }
+
+    @Test
+    void estimatedCompletionIsOnlyAvailableFor3DPrintingOrders() {
+        ProductionOrderEntity order = order();
+        UserEntity admin = user();
+        admin.setRole(UserRoleENUM.ADMIN);
+        when(userService.findActiveUserById(12L)).thenReturn(admin);
+        when(productionOrderRepository.findByIdForUpdate(9L)).thenReturn(Optional.of(order));
+
+        assertThrows(IllegalArgumentException.class, () -> productionOrderService.updateEstimatedCompletion(
+                9L, LocalDateTime.of(2026, 11, 12, 16, 30), 12L));
+        verify(productionOrderRepository, never()).save(any(ProductionOrderEntity.class));
     }
 
     @Test

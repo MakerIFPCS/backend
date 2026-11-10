@@ -47,6 +47,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/orders/*/file").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/orders/*/comments").authenticated()
                         .requestMatchers(HttpMethod.PATCH, "/api/orders/*/status").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/orders/*/estimated-completion").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/orders/*/estimated-completion").hasRole("ADMIN")
                         .requestMatchers("/api/reports/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/machines/**").authenticated()
                         .requestMatchers("/api/machines/**").hasRole("ADMIN")

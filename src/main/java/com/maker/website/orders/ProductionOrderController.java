@@ -3,6 +3,7 @@ package com.maker.website.orders;
 import com.maker.website.orders.dtos.ProductionOrderFileDTO;
 import com.maker.website.orders.dtos.ProductionOrderResponseDTO;
 import com.maker.website.orders.dtos.AddProductionOrderCommentDTO;
+import com.maker.website.orders.dtos.EstimatedCompletionDTO;
 import com.maker.website.orders.dtos.ReviewProductionOrderDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ContentDisposition;
@@ -11,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -78,6 +80,25 @@ public class ProductionOrderController {
     ) {
         return ResponseEntity.ok(productionOrderService.reviewOrder(
                 id, review, (Long) authentication.getPrincipal()));
+    }
+
+    @PatchMapping("/{id}/estimated-completion")
+    public ResponseEntity<ProductionOrderResponseDTO> updateEstimatedCompletion(
+            @PathVariable Long id,
+            @RequestBody EstimatedCompletionDTO completion,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(productionOrderService.updateEstimatedCompletion(
+                id, completion.estimatedCompletionAt(), (Long) authentication.getPrincipal()));
+    }
+
+    @DeleteMapping("/{id}/estimated-completion")
+    public ResponseEntity<ProductionOrderResponseDTO> clearEstimatedCompletion(
+            @PathVariable Long id,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(productionOrderService.clearEstimatedCompletion(
+                id, (Long) authentication.getPrincipal()));
     }
 
     @PostMapping("/{id}/comments")
