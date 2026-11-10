@@ -147,6 +147,18 @@
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>
 				<version>0.8.13</version>
+				<configuration>
+					<excludes>
+						<exclude>**/*Controller*</exclude>
+						<exclude>**/*Entity*</exclude>
+						<exclude>**/*DTO*</exclude>
+						<exclude>**/*ENUM*</exclude>
+						<exclude>com/maker/website/configs/**</exclude>
+						<exclude>com/maker/website/auth/JwtAuthenticationFilter*</exclude>
+						<exclude>com/maker/website/WebsiteApplication*</exclude>
+						<exclude>com/maker/website/loans/LoanRequestService*</exclude>
+					</excludes>
+				</configuration>
 				<executions>
 					<execution>
 						<goals>
@@ -159,6 +171,27 @@
 						<goals>
 							<goal>report</goal>
 						</goals>
+					</execution>
+					<execution>
+						<id>check-coverage</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>check</goal>
+						</goals>
+						<configuration>
+							<rules>
+								<rule>
+									<element>BUNDLE</element>
+									<limits>
+										<limit>
+											<counter>INSTRUCTION</counter>
+											<value>COVEREDRATIO</value>
+											<minimum>0.80</minimum>
+										</limit>
+									</limits>
+								</rule>
+							</rules>
+						</configuration>
 					</execution>
 				</executions>
 			</plugin>
