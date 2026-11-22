@@ -1,6 +1,7 @@
 package com.maker.website.handlers;
 
 import com.maker.website.dtos.ApiErrorDTO;
+import com.maker.website.users.EmailDeliveryException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.http.HttpStatus;
@@ -40,5 +41,11 @@ public class ApiExceptionHandler {
     public ResponseEntity<ApiErrorDTO> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException exception) {
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
                 .body(new ApiErrorDTO("The uploaded file must not exceed 100 MB."));
+    }
+
+    @ExceptionHandler(EmailDeliveryException.class)
+    public ResponseEntity<ApiErrorDTO> handleEmailDelivery(EmailDeliveryException exception) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(new ApiErrorDTO(exception.getMessage()));
     }
 }

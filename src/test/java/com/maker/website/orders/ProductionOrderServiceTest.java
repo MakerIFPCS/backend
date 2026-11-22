@@ -40,15 +40,18 @@ class ProductionOrderServiceTest {
                 "file", "part.custom-extension", "application/x-unlisted-format", new byte[]{1, 2, 3});
 
         var result = productionOrderService.createOrder(
-                12L, ProductionOrderTypeENUM.LASER_CUTTING, null, "Please check dimensions.", file);
+                12L, ProductionOrderTypeENUM.LASER_CUTTING, null, "Please check dimensions.",
+                "Width 20 cm, height 10 cm", file);
 
         assertEquals(ProductionOrderTypeENUM.LASER_CUTTING, result.type());
         assertEquals("part.custom-extension", result.fileName());
         assertEquals(3, result.fileSize());
         assertEquals(ProductionOrderStatusENUM.PENDING, result.status());
+        assertEquals("Width 20 cm, height 10 cm", result.dimensions());
         verify(productionOrderRepository).save(argThat(order ->
                 order.getFileData().length == 3
                         && order.getFileData()[0] == 1
+                        && order.getDimensions().equals("Width 20 cm, height 10 cm")
                         && order.getContentType().equals("application/x-unlisted-format")));
         verifyNoInteractions(machineRepository);
     }
@@ -68,7 +71,7 @@ class ProductionOrderServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         var result = productionOrderService.createOrder(
-                12L, ProductionOrderTypeENUM.THREE_D_PRINTING, 5L, null,
+                12L, ProductionOrderTypeENUM.THREE_D_PRINTING, 5L, null, "Height 5 cm",
                 new MockMultipartFile("file", "model.stl", "model/stl", new byte[]{4}));
 
         assertEquals(5L, result.machineId());
@@ -79,13 +82,24 @@ class ProductionOrderServiceTest {
     @Test
     void validatesFilePrinterAndNotesBeforeSaving() {
         assertThrows(IllegalArgumentException.class, () -> productionOrderService.createOrder(
-                12L, ProductionOrderTypeENUM.LASER_CUTTING, null, null, null));
+                12L, ProductionOrderTypeENUM.LASER_CUTTING, null, null, null, null));
         assertThrows(IllegalArgumentException.class, () -> productionOrderService.createOrder(
-                12L, ProductionOrderTypeENUM.THREE_D_PRINTING, null, null,
+                12L, ProductionOrderTypeENUM.THREE_D_PRINTING, null, null, "Height 5 cm",
                 new MockMultipartFile("file", "model.stl", "model/stl", new byte[]{1})));
         assertThrows(IllegalArgumentException.class, () -> productionOrderService.createOrder(
-                12L, ProductionOrderTypeENUM.LASER_CUTTING, null, "x".repeat(2001),
+                12L, ProductionOrderTypeENUM.LASER_CUTTING, null, "x".repeat(2001), "Width 20 cm",
                 new MockMultipartFile("file", "model.stl", "model/stl", new byte[]{1})));
+        verifyNoInteractions(userService, productionOrderRepository, machineRepository);
+    }
+
+    @Test
+    void requiresNonBlankDimensionsAndSpecifications() {
+        MockMultipartFile file = new MockMultipartFile("file", "model.stl", "model/stl", new byte[]{1});
+
+        assertThrows(IllegalArgumentException.class, () -> productionOrderService.createOrder(
+                12L, ProductionOrderTypeENUM.LASER_CUTTING, null, null, "  ", file));
+        assertThrows(IllegalArgumentException.class, () -> productionOrderService.createOrder(
+                12L, ProductionOrderTypeENUM.LASER_CUTTING, null, null, null, file));
         verifyNoInteractions(userService, productionOrderRepository, machineRepository);
     }
 
@@ -97,7 +111,7 @@ class ProductionOrderServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         var result = productionOrderService.createOrder(
-                12L, ProductionOrderTypeENUM.LASER_CUTTING, null, null, maxSizeFile);
+                12L, ProductionOrderTypeENUM.LASER_CUTTING, null, null, "Width 20 cm", maxSizeFile);
 
         assertEquals(100L * 1024 * 1024, result.fileSize());
         verify(productionOrderRepository).save(any(ProductionOrderEntity.class));
@@ -105,7 +119,7 @@ class ProductionOrderServiceTest {
         when(oversizedFile.isEmpty()).thenReturn(false);
         when(oversizedFile.getSize()).thenReturn(100L * 1024 * 1024 + 1);
         assertThrows(IllegalArgumentException.class, () -> productionOrderService.createOrder(
-                12L, ProductionOrderTypeENUM.LASER_CUTTING, null, null,
+                12L, ProductionOrderTypeENUM.LASER_CUTTING, null, null, "Width 20 cm",
                 oversizedFile));
     }
 
@@ -118,13 +132,13 @@ class ProductionOrderServiceTest {
                 .thenReturn(Optional.of(unavailablePrinter));
 
         assertThrows(IllegalArgumentException.class, () -> productionOrderService.createOrder(
-                12L, ProductionOrderTypeENUM.THREE_D_PRINTING, 5L, null,
+                12L, ProductionOrderTypeENUM.THREE_D_PRINTING, 5L, null, "Height 5 cm",
                 new MockMultipartFile("file", "model.stl", "model/stl", new byte[]{1})));
 
         unavailablePrinter.setStatus(MachineStatusENUM.AVAILABLE);
         unavailablePrinter.setType("Corte a Laser");
         assertThrows(IllegalArgumentException.class, () -> productionOrderService.createOrder(
-                12L, ProductionOrderTypeENUM.THREE_D_PRINTING, 5L, null,
+                12L, ProductionOrderTypeENUM.THREE_D_PRINTING, 5L, null, "Height 5 cm",
                 new MockMultipartFile("file", "model.stl", "model/stl", new byte[]{1})));
         verifyNoInteractions(productionOrderRepository);
     }
@@ -142,6 +156,28 @@ class ProductionOrderServiceTest {
         assertEquals("Ready to schedule.", result.adminNotes());
         assertThrows(IllegalArgumentException.class, () -> productionOrderService.reviewOrder(
                 9L, new ReviewProductionOrderDTO(ProductionOrderStatusENUM.REJECTED, null)));
+    }
+
+    @Test
+    void asksRequesterForMoreInformationWithAdminMessage() {
+        ProductionOrderEntity order = order();
+        when(productionOrderRepository.findByIdForUpdate(9L)).thenReturn(Optional.of(order));
+        when(productionOrderRepository.save(order)).thenReturn(order);
+
+        var result = productionOrderService.reviewOrder(
+                9L, new ReviewProductionOrderDTO(
+                        ProductionOrderStatusENUM.WAITING_FOR_UPDATE,
+                        "  Envie as dimensões que faltam.  "));
+
+        assertEquals(ProductionOrderStatusENUM.WAITING_FOR_UPDATE, result.status());
+        assertEquals("Envie as dimensões que faltam.", result.adminNotes());
+    }
+
+    @Test
+    void requiresAdminMessageWhenWaitingForRequesterInformation() {
+        assertThrows(IllegalArgumentException.class, () -> productionOrderService.reviewOrder(
+                9L, new ReviewProductionOrderDTO(ProductionOrderStatusENUM.WAITING_FOR_UPDATE, "  ")));
+        verify(productionOrderRepository, never()).save(any());
     }
 
     @Test

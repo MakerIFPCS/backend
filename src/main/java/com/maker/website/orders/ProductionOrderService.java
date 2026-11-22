@@ -45,9 +45,10 @@ public class ProductionOrderService {
             ProductionOrderTypeENUM type,
             Long machineId,
             String notes,
+            String dimensions,
             MultipartFile file
     ) throws IOException {
-        validateRequest(type, machineId, notes, file);
+        validateRequest(type, machineId, notes, dimensions, file);
         var requester = userService.findActiveUserById(requesterId);
 
         MachineEntity machine = null;
@@ -80,6 +81,7 @@ public class ProductionOrderService {
         order.setFileSize(file.getSize());
         order.setFileData(file.getBytes());
         order.setNotes(notes == null ? "" : notes.trim());
+        order.setDimensions(dimensions.trim());
         order.setStatus(ProductionOrderStatusENUM.PENDING);
         return new ProductionOrderResponseDTO(productionOrderRepository.save(order));
     }
@@ -113,6 +115,7 @@ public class ProductionOrderService {
             ProductionOrderTypeENUM type,
             Long machineId,
             String notes,
+            String dimensions,
             MultipartFile file
     ) {
         if (type == null) {
@@ -140,6 +143,12 @@ public class ProductionOrderService {
         if (notes != null && notes.trim().length() > 2000) {
             throw new IllegalArgumentException("Notes must contain at most 2000 characters.");
         }
+        if (dimensions == null || dimensions.isBlank()) {
+            throw new IllegalArgumentException("Dimensions and specifications are required.");
+        }
+        if (dimensions.trim().length() > 2000) {
+            throw new IllegalArgumentException("Dimensions and specifications must contain at most 2000 characters.");
+        }
     }
 
     private String sanitizeFileName(String fileName) {
@@ -158,10 +167,15 @@ public class ProductionOrderService {
         if (review == null
                 || review.status() == null
                 || review.status() == ProductionOrderStatusENUM.PENDING) {
-            throw new IllegalArgumentException("A review status of APPROVED or REJECTED is required.");
+            throw new IllegalArgumentException("Select a valid production order status.");
         }
         if (review.adminNotes() != null && review.adminNotes().trim().length() > 500) {
             throw new IllegalArgumentException("Admin notes must contain at most 500 characters.");
+        }
+        if ((review.status() == ProductionOrderStatusENUM.WAITING_FOR_UPDATE
+                || review.status() == ProductionOrderStatusENUM.REJECTED)
+                && (review.adminNotes() == null || review.adminNotes().isBlank())) {
+            throw new IllegalArgumentException("Admin notes are required for this status.");
         }
     }
 }

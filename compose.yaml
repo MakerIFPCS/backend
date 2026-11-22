@@ -30,6 +30,14 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin12345678}
       DEMO_USER_EMAIL: ${DEMO_USER_EMAIL:-usuario@sitemaker.local}
       DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD:-usuario123}
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      MAIL_AUTH: ${MAIL_AUTH:-true}
+      MAIL_STARTTLS: ${MAIL_STARTTLS:-true}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
       SPRING_SQL_INIT_MODE: always
     ports:
       - "8081:8081"

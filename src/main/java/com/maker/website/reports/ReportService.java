@@ -1,6 +1,5 @@
 package com.maker.website.reports;
 
-import com.maker.website.agendamentos.AgendamentoRepository;
 import com.maker.website.loans.LoanRequestRepository;
 import com.maker.website.materials.MaterialRepository;
 import com.maker.website.machines.MachineRepository;
@@ -25,7 +24,6 @@ public class ReportService {
     private final UserRepository userRepository;
     private final MachineRepository machineRepository;
     private final MaterialRepository materialRepository;
-    private final AgendamentoRepository agendamentoRepository;
     private final LoanRequestRepository loanRequestRepository;
 
     @Transactional(readOnly = true)
@@ -39,6 +37,7 @@ public class ReportService {
         List<ReportEventDTO> events = new ArrayList<>();
 
         findAuditEvents(fromDate, untilDate).stream()
+                .filter(event -> !"AGENDAMENTO".equalsIgnoreCase(event.getCategory()))
                 .map(ReportEventDTO::new)
                 .forEach(events::add);
 
@@ -53,11 +52,6 @@ public class ReportService {
         materialRepository.findAll().forEach(material -> addCreationEventIfMissing(
                 events, material.getCreatedAt(), "MATERIAL", "Material cadastrado", material.getName(),
                 "Estoque atual: " + material.getQuantity() + " " + material.getUnit(),
-                fromDate, untilDate));
-        agendamentoRepository.findAll().forEach(request -> addCreationEventIfMissing(
-                events, request.getCreatedAt(), "AGENDAMENTO", "Pedido de agendamento criado",
-                request.getRequesterName(),
-                "Código: " + request.getCode() + " · Data solicitada: " + request.getDate(),
                 fromDate, untilDate));
         loanRequestRepository.findAllByOrderByCreatedAtDesc().forEach(request -> addCreationEventIfMissing(
                 events, request.getCreatedAt(), "EMPRÉSTIMO", "Pedido de empréstimo criado",

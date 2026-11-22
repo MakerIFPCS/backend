@@ -37,8 +37,13 @@ public class ProductionOrderController {
     }
 
     @GetMapping
-    public ResponseEntity<List<ProductionOrderResponseDTO>> getAllOrders() {
-        return ResponseEntity.ok(productionOrderService.getAllOrders());
+    public ResponseEntity<List<ProductionOrderResponseDTO>> getOrders(Authentication authentication) {
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
+        List<ProductionOrderResponseDTO> orders = isAdmin
+                ? productionOrderService.getAllOrders()
+                : productionOrderService.getMyOrders((Long) authentication.getPrincipal());
+        return ResponseEntity.ok(orders);
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -46,11 +51,12 @@ public class ProductionOrderController {
             @RequestParam ProductionOrderTypeENUM type,
             @RequestParam(required = false) Long machineId,
             @RequestParam(required = false) String notes,
+            @RequestParam String dimensions,
             @RequestParam MultipartFile file,
             Authentication authentication
     ) throws IOException {
         return ResponseEntity.status(HttpStatus.CREATED).body(productionOrderService.createOrder(
-                (Long) authentication.getPrincipal(), type, machineId, notes, file));
+                (Long) authentication.getPrincipal(), type, machineId, notes, dimensions, file));
     }
 
     @PatchMapping("/{id}/status")

@@ -59,6 +59,9 @@ public class ProductionOrderEntity {
     @Column(nullable = false, length = 2000)
     private String notes;
 
+    @Column(length = 2000)
+    private String dimensions;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private ProductionOrderStatusENUM status;

@@ -10,13 +10,21 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
 
     List<UserEntity> findAllByStatusNot(UserStatusENUM status);
 
+    List<UserEntity> findAllByStatus(UserStatusENUM status);
+
     Optional<UserEntity> findByIdAndStatusNot(Long id, UserStatusENUM status);
+
+    Optional<UserEntity> findByIdAndStatus(Long id, UserStatusENUM status);
 
     Optional<UserEntity> findByEmailAndStatusNot(String email, UserStatusENUM status);
 
     Optional<UserEntity> findByEmail(String email);
 
+    Optional<UserEntity> findByEmailIgnoreCase(String email);
+
     boolean existsByEmail(String email);
+
+    boolean existsByEmailIgnoreCase(String email);
 
     boolean existsByCpf(String cpf);
 }
