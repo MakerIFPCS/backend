@@ -41,8 +41,13 @@ public class ProductionOrderController {
     }
 
     @GetMapping
-    public ResponseEntity<List<ProductionOrderResponseDTO>> getAllOrders() {
-        return ResponseEntity.ok(productionOrderService.getAllOrders());
+    public ResponseEntity<List<ProductionOrderResponseDTO>> getOrders(Authentication authentication) {
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
+        List<ProductionOrderResponseDTO> orders = isAdmin
+                ? productionOrderService.getAllOrders()
+                : productionOrderService.getMyOrders((Long) authentication.getPrincipal());
+        return ResponseEntity.ok(orders);
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -50,26 +55,12 @@ public class ProductionOrderController {
             @RequestParam ProductionOrderTypeENUM type,
             @RequestParam(required = false) Long machineId,
             @RequestParam(required = false) String notes,
-            @RequestParam(required = false) String dimensions,
-            @RequestParam(required = false) MultipartFile file,
+            @RequestParam String dimensions,
+            @RequestParam MultipartFile file,
             Authentication authentication
     ) throws IOException {
         return ResponseEntity.status(HttpStatus.CREATED).body(productionOrderService.createOrder(
                 (Long) authentication.getPrincipal(), type, machineId, notes, dimensions, file));
-    }
-
-    @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<ProductionOrderResponseDTO> updateOrder(
-            @PathVariable Long id,
-            @RequestParam ProductionOrderTypeENUM type,
-            @RequestParam(required = false) Long machineId,
-            @RequestParam(required = false) String notes,
-            @RequestParam(required = false) String dimensions,
-            @RequestParam(required = false) MultipartFile file,
-            Authentication authentication
-    ) throws IOException {
-        return ResponseEntity.ok(productionOrderService.updateOrder(
-                id, (Long) authentication.getPrincipal(), type, machineId, notes, dimensions, file));
     }
 
     @PatchMapping("/{id}/status")

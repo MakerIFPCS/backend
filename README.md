@@ -34,6 +34,28 @@ Esses são valores de desenvolvimento. Para alterá-los, defina `ADMIN_EMAIL`,
 códigos ou e-mails ainda não existem; reiniciar os containers não sobrescreve
 nem duplica os dados.
 
+## Confirmação de e-mail
+
+Novos cadastros ficam pendentes até que o usuário abra o link enviado por
+e-mail. Contas já existentes e contas de demonstração continuam ativas. Para
+habilitar o envio, configure no `backend/.env` as variáveis SMTP abaixo; use a
+senha de aplicativo exigida pelo provedor, quando aplicável. Não versione nem
+compartilhe esse arquivo.
+
+| Variável | Descrição |
+| --- | --- |
+| `MAIL_HOST` | Host SMTP do provedor |
+| `MAIL_PORT` | Porta SMTP (normalmente `587` para STARTTLS) |
+| `MAIL_USERNAME` | Usuário SMTP |
+| `MAIL_PASSWORD` | Senha SMTP ou senha de aplicativo |
+| `MAIL_FROM` | Endereço remetente autorizado pelo provedor |
+| `MAIL_AUTH` | Habilita autenticação SMTP (`true` por padrão) |
+| `MAIL_STARTTLS` | Habilita STARTTLS (`true` por padrão) |
+| `FRONTEND_URL` | URL pública do frontend usada no link de confirmação |
+
+Sem `MAIL_HOST` e `MAIL_FROM`, o cadastro retorna erro explícito e não ativa a
+conta. O usuário pode solicitar o reenvio do link na tela de confirmação.
+
 ## Materiais
 
 `GET /api/materials` lista os materiais sem exigir autenticação.

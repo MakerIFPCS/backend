@@ -2,6 +2,8 @@ package com.maker.website.handlers;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
@@ -25,5 +27,19 @@ class ApiExceptionHandlerTest {
 
         assertEquals(HttpStatus.PAYLOAD_TOO_LARGE, response.getStatusCode());
         assertEquals("The uploaded file must not exceed 100 MB.", response.getBody().message());
+    }
+
+    @Test
+    void reportsMissingAuthenticationAsUnauthorized() {
+        var response = handler.handleAuthentication(new BadCredentialsException("Missing credentials."));
+
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+    }
+
+    @Test
+    void reportsAuthorizationDenialAsForbidden() {
+        var response = handler.handleAccessDenied(new AccessDeniedException("Not the owner."));
+
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
     }
 }

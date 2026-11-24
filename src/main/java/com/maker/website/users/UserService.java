@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -23,9 +24,10 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final ReportAuditService reportAuditService;
+    private final EmailVerificationService emailVerificationService;
 
     public List<UserResponseDTO> getAllUsers() {
-        return userRepository.findAllByStatusNot(UserStatusENUM.DELETED)
+        return userRepository.findAllByStatus(UserStatusENUM.ACTIVE)
                 .stream().map(UserResponseDTO::new).toList();
     }
 
@@ -37,22 +39,25 @@ public class UserService {
 
     @Transactional
     public UserResponseDTO createUser(CreateUserDTO dto) {
-        validateEmail(dto.email());
+        if (dto == null) throw new IllegalArgumentException("User data is required.");
+        String email = normalizeEmail(dto.email());
+        validateEmail(email);
         validateCpf(dto.cpf());
 
         UserEntity user = new UserEntity();
         user.setName(dto.name());
         user.setPassword(passwordEncoder.encode(dto.password()));
-        user.setEmail(dto.email());
+        user.setEmail(email);
         user.setCellphone("+5535992202021");
         user.setCpf(dto.cpf());
         user.setType(UserTypeENUM.ALUNO);
         user.setBirthDate(LocalDate.now());
         user.setRole(UserRoleENUM.USER);
-        user.setStatus(UserStatusENUM.ACTIVE);
+        user.setStatus(UserStatusENUM.PENDING_VERIFICATION);
         UserEntity savedUser = userRepository.save(user);
+        emailVerificationService.sendVerification(savedUser);
         reportAuditService.record("USUÁRIO", "Conta criada", savedUser.getName(), null,
-                "Cadastro: " + savedUser.getEmail());
+                "Cadastro pendente de confirmação: " + savedUser.getEmail());
         return new UserResponseDTO(savedUser);
     }
 
@@ -111,16 +116,22 @@ public class UserService {
     }
 
     public UserEntity authenticate(String email, String rawPassword) {
-        UserEntity user = userRepository.findByEmailAndStatusNot(email, UserStatusENUM.DELETED)
+        UserEntity user = userRepository.findByEmailIgnoreCase(normalizeEmail(email))
                 .orElseThrow(() -> new IllegalArgumentException("Invalid email or password."));
         if (!passwordEncoder.matches(rawPassword, user.getPassword())) {
+            throw new IllegalArgumentException("Invalid email or password.");
+        }
+        if (user.getStatus() == UserStatusENUM.PENDING_VERIFICATION) {
+            throw new IllegalArgumentException("Confirme seu e-mail pelo link enviado antes de entrar.");
+        }
+        if (user.getStatus() == UserStatusENUM.DELETED) {
             throw new IllegalArgumentException("Invalid email or password.");
         }
         return user;
     }
 
     public UserEntity findActiveUserById(Long id) {
-        return userRepository.findByIdAndStatusNot(id, UserStatusENUM.DELETED)
+        return userRepository.findByIdAndStatus(id, UserStatusENUM.ACTIVE)
                 .orElseThrow(() -> new IllegalArgumentException("User not found."));
     }
 
@@ -138,7 +149,11 @@ public class UserService {
 
     private void validateEmail(String email) {
         if (email == null || email.isBlank()) throw new IllegalArgumentException("Email is required.");
-        if (userRepository.existsByEmail(email)) throw new IllegalArgumentException("Email is already in use.");
+        if (userRepository.existsByEmailIgnoreCase(email)) throw new IllegalArgumentException("Email is already in use.");
+    }
+
+    private String normalizeEmail(String email) {
+        return email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
     }
 
     private void validateCpf(String cpf) {
